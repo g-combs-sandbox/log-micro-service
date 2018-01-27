@@ -1,0 +1,151 @@
+service: log-micro-service
+
+frameworkVersion: ">=1.1.0 <2.0.0"
+
+provider:
+  name: aws
+  runtime: nodejs4.3
+  custom:
+    defaultStage: dev
+    profiles:
+      dev: devLooogle
+      prod: prodLooogle
+  environment:
+    DYNAMODB_LOG_TABLE: ${self:service}-logs-${opt:stage, self:provider.stage}
+    DYNAMODB_SUMMARY_TABLE: ${self:service}-summaries-${opt:stage, self:provider.stage}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Scan
+        - dynamodb:Query
+        - dynamodb:GetItem
+      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_LOG_TABLE}"
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_LOG_TABLE}/index/*"
+    - Effect: Allow
+      Action:
+        - dynamodb:Scan
+        - dynamodb:Query
+        - dynamodb:GetItem
+      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_SUMMARY_TABLE}"
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_SUMMARY_TABLE}/index/*"
+
+plugins:
+  - serverless-domain-manager
+
+custom:
+  customDomain:
+    domainName: looogle.combsgd.com
+    certificateName: '*.combsgd.com'
+    basePath: ''
+    stage: ${self:provider.stage}
+    createRoute53Record: true
+
+functions:
+  summary:
+    handler: log/summary.summary
+    events:
+      - http:
+          path: summary
+          method: get
+          cors: false
+
+  list:
+    handler: log/list.list
+    events:
+      - http:
+          path: log
+          method: get
+          cors: false
+
+  get:
+    handler: log/get.get
+    events:
+      - http:
+          path: log/{id}
+          method: get
+          cors: false
+
+resources:
+  Resources:
+    SummaryDynamoDbTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: resource
+            AttributeType: S
+          -
+            AttributeName: totalCount
+            AttributeType: N
+        KeySchema:
+          -
+            AttributeName: resource
+            KeyType: HASH
+          -
+            AttributeName: totalCount
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: ${self:provider.environment.DYNAMODB_SUMMARY_TABLE}
+    LogDynamoDbTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: id
+            AttributeType: S
+          -
+            AttributeName: requestDate
+            AttributeType: S
+          -
+            AttributeName: requestResource
+            AttributeType: S
+          -
+            AttributeName: responseStatus
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: ${self:provider.environment.DYNAMODB_LOG_TABLE}
+        GlobalSecondaryIndexes:
+        - IndexName: ResourceIndex
+          KeySchema:
+          -
+            AttributeName: requestResource
+            KeyType: HASH
+          -
+            AttributeName: requestDate
+            KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 1
+            WriteCapacityUnits: 1
+        - IndexName: StatusIndex
+          KeySchema:
+          -
+            AttributeName: responseStatus
+            KeyType: HASH
+          -
+            AttributeName: requestDate
+            KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 1
+            WriteCapacityUnits: 1

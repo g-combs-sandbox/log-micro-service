@@ -1,0 +1,13 @@
+{
+  "name": "looogle-micro-service",
+  "version": "1.0.0",
+  "description": "Serverless CRUD service exposing a REST HTTP interface",
+  "author": "Garron Combs",
+  "dependencies": {
+    "uuid": "^2.0.3",
+    "debug": "^3.1.0"
+  },
+  "devDependencies": {
+    "serverless-domain-manager": "^2.2.1"
+  }
+}
